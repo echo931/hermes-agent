@@ -222,7 +222,9 @@ def _get_provider(stt_config: dict) -> str:
 
     When ``stt.provider`` is explicitly set in config, that choice is
     honoured — no silent cloud fallback.  When no provider is configured,
-    auto-detect tries: local > groq (free) > openai (paid).
+    auto-detect tries: local faster-whisper > local command > Groq >
+    OpenAI > xAI.  Mistral is intentionally skipped while its SDK package
+    remains quarantined.
     """
     if not is_stt_enabled(stt_config):
         return "none"
@@ -886,7 +888,7 @@ def transcribe_audio(file_path: str, model: Optional[str] = None) -> Dict[str, A
 
     Provider priority:
       1. User config (``stt.provider`` in config.yaml)
-      2. Auto-detect: local faster-whisper (free) > Groq (free tier) > OpenAI (paid)
+      2. Auto-detect: local faster-whisper > local command > Groq > OpenAI > xAI
 
     Args:
         file_path: Absolute path to the audio file to transcribe.
