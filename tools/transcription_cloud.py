@@ -104,6 +104,29 @@ def _transcribe_groq(
     return _with_openai_client(api_key, GROQ_BASE_URL, file_path, "Groq", _run)
 
 
+def _get_openai_stt_prompt(
+    openai_cfg: Optional[dict] = None,
+    prompt: Optional[str] = None,
+) -> Optional[str]:
+    """Resolve inline STT hints first, then read the configured prompt file per request."""
+    inline_prompt = str(prompt or "").strip()
+    if inline_prompt:
+        return inline_prompt
+    if openai_cfg is None:
+        from tools.transcription_tools import _load_stt_config
+        openai_cfg = _load_stt_config().get("openai", {})
+    if not isinstance(openai_cfg, dict):
+        openai_cfg = {}
+    prompt_file = str(openai_cfg.get("prompt_file") or "").strip()
+    if not prompt_file:
+        return None
+    try:
+        return Path(prompt_file).expanduser().read_text(encoding="utf-8").strip() or None
+    except (OSError, UnicodeError) as exc:
+        logger.warning("Configured STT prompt file '%s' could not be read: %s", prompt_file, exc)
+        return None
+
+
 def _transcribe_openai(
     file_path: str, model_name: str, *, api_key: Optional[str] = None,
     base_url: Optional[str] = None, provider_label: str = "openai", language: Optional[str] = None,
@@ -111,7 +134,7 @@ def _transcribe_openai(
     """Transcribe via the OpenAI ``audio.transcriptions.create`` SDK shape, shared by every
     OpenAI-compatible endpoint (DeepInfra etc.): explicit ``api_key``/``base_url`` skip the
     OpenAI-only auth chain; ``provider_label`` names the response's provider."""
-    from tools.transcription_tools import _HAS_OPENAI, _resolve_stt_language
+    from tools.transcription_tools import _HAS_OPENAI, _load_stt_config, _resolve_stt_language
     if api_key is None:
         try:
             api_key, fallback_base = _resolve_openai_audio_client_config()
@@ -127,6 +150,13 @@ def _transcribe_openai(
         logger.info("Model %s not available on OpenAI, using %s", model_name, DEFAULT_STT_MODEL)
         model_name = DEFAULT_STT_MODEL
 
+    # Shared callers (DeepInfra/plugins) receive only their explicit hints.
+    openai_cfg = _load_stt_config().get("openai", {}) if provider_label == "openai" else {}
+    if not isinstance(openai_cfg, dict):
+        openai_cfg = {}
+    resolved_prompt = _get_openai_stt_prompt(openai_cfg, prompt)
+    hotwords = str(openai_cfg.get("hotwords") or "").strip()
+
     def _run(client):
         from openai import BadRequestError
 
@@ -134,15 +164,17 @@ def _transcribe_openai(
             create_kwargs: Dict[str, Any] = {
                 "model": model_name, "response_format": "text" if model_name == "whisper-1" else "json",
             }
+            if hotwords:
+                create_kwargs["extra_body"] = {"hotwords": hotwords}
             if language:
                 # gpt-transcribe takes a ``languages`` list and rejects the legacy field.
                 if model_name == "gpt-transcribe":
-                    create_kwargs["extra_body"] = {"languages": [language]}
+                    create_kwargs.setdefault("extra_body", {})["languages"] = [language]
                 else:
                     create_kwargs["language"] = language
                 logger.debug("Using language hint '%s' for OpenAI STT", language)
-            if prompt:  # only when set so the bare request stays byte-identical
-                create_kwargs["prompt"] = prompt
+            if resolved_prompt:  # only when set so the bare request stays byte-identical
+                create_kwargs["prompt"] = resolved_prompt
             with open(path, "rb") as audio_file:
                 return client.audio.transcriptions.create(file=audio_file, **create_kwargs)
         with tempfile.TemporaryDirectory(prefix="hermes-stt-") as work_dir:
