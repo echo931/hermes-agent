@@ -163,7 +163,7 @@ model:
 # -----------------------------------------------------------------------------
 # Working directory behavior:
 #   - CLI (`hermes` command): Uses "." (current directory where you run hermes)
-#   - Messaging (Telegram/Discord): Uses MESSAGING_CWD from .env (default: home)
+#   - Gateway/messaging/cron: Uses terminal.cwd here; legacy .env cwd values are deprecated
 terminal:
   backend: "local"
   cwd: "."  # For local backend: "." = current directory. Ignored for remote backends unless a backend documents otherwise.
@@ -826,6 +826,10 @@ stt:
     # language: ""             # auto-detect; set to "en", "es", "fr", etc. to force
   openai:
     model: "whisper-1"         # whisper-1 | gpt-4o-mini-transcribe | gpt-4o-transcribe
+    # language: ""             # optional ISO hint, e.g. "en", "fr"
+    # prompt: ""               # optional short transcription hint
+    # prompt_file: ""          # optional UTF-8 file with a reusable prompt
+    # hotwords: ""             # optional OpenAI-compatible endpoint hint
   # mistral:
   #   model: "voxtral-mini-latest"  # voxtral-mini-latest | voxtral-mini-2602
 
