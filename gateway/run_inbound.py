@@ -1406,6 +1406,7 @@ class GatewayInboundMixin:
     ) -> str:
         message_text, _successful_transcripts = await self._enrich_message_with_transcription(
             message_text, audio_paths,
+            topic_context=event.channel_prompt or "",
         )
         # Echo each successful transcript back immediately when configured so users can verify STT
         # quality in real time. On transcription failure do NOT send a hardcoded notice: that
@@ -1944,7 +1945,7 @@ class GatewayInboundMixin:
         return transcript, f'"{transcript}"'
 
     async def _enrich_message_with_transcription(
-        self, user_text: str, audio_paths: List[str]
+        self, user_text: str, audio_paths: List[str], topic_context: str = ""
     ) -> tuple[str, List[str]]:
         """Transcribe voice clips with the configured STT provider and prepend the transcripts →
         ``(enriched_text, successful_transcripts)``; the transcripts (input order; empty if every clip
@@ -1977,6 +1978,17 @@ class GatewayInboundMixin:
                     path, transcribe_audio, transcribe_audio_local_fallback,
                 )
                 if transcript is not None:
+                    cleanup_config = getattr(self.config, "stt_cleanup", {})
+                    if isinstance(cleanup_config, dict) and cleanup_config.get("enabled"):
+                        try:
+                            from tools.transcript_cleanup import cleanup_transcript
+                            cleanup_result = await asyncio.to_thread(
+                                cleanup_transcript, transcript, topic_context, cleanup_config,
+                            )
+                            transcript = cleanup_result.text
+                            note = f'"{transcript}"'
+                        except Exception:
+                            logger.warning("Transcript cleanup failed; using raw transcript")
                     successful_transcripts.append(transcript)
                 enriched_parts.append(note)
             except Exception as e:
@@ -2006,7 +2018,9 @@ class GatewayInboundMixin:
         if not audio_paths:
             return user_text if user_text is not None else (getattr(event, "text", None) or None), []
         text = user_text if user_text is not None else (getattr(event, "text", "") or "")
-        enriched_text, successful_transcripts = await self._enrich_message_with_transcription(text, audio_paths)
+        enriched_text, successful_transcripts = await self._enrich_message_with_transcription(
+            text, audio_paths, topic_context=event.channel_prompt or "",
+        )
         event._gateway_pending_stt_text = enriched_text
         event._gateway_pending_stt_transcripts = list(successful_transcripts)
         return enriched_text, successful_transcripts

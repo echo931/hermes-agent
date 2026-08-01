@@ -552,7 +552,8 @@ class GatewayConfig:
     # channels; a substrate guard that survives prompt drift.
     filter_silence_narration: bool = True
     stt_enabled: bool = True  # Auto-transcribe inbound voice messages
-    stt_echo_transcripts: bool = True  # Echo raw STT transcripts back to the user
+    stt_echo_transcripts: bool = True  # Echo retained STT transcripts back to the user
+    stt_cleanup: Dict[str, Any] = field(default_factory=dict)
     group_sessions_per_user: bool = True  # Isolate group sessions per participant when user IDs exist
     thread_sessions_per_user: bool = False  # False = threads shared across participants
     max_concurrent_sessions: Optional[int] = None  # Positive int caps simultaneous active sessions
@@ -730,6 +731,7 @@ class GatewayConfig:
             **{name: _coerce_bool(data.get(name), default) for name, default in _TOPLEVEL_BOOL_DEFAULTS.items()},
             stt_enabled=_coerce_bool(stt_setting("stt_enabled", "enabled"), True),
             stt_echo_transcripts=_coerce_bool(stt_setting("stt_echo_transcripts", "echo_transcripts"), True),
+            stt_cleanup=_coerce_dict(_coerce_dict(data.get("stt")).get("cleanup")),
             multiplex_profiles=_coerce_bool(multiplex_profiles, False),
             multiplex_profile_allowlist=pick("multiplex_profile_allowlist"),
             room_link_url=room_link_url if isinstance(room_link_url, str) else None,
