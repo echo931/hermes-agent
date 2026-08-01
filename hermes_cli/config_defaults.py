@@ -1514,6 +1514,14 @@ DEFAULT_CONFIG = {
         # "STT transcribed the wrong language". Set to "" to restore
         # auto-detect, or to your language code ("es", "zh", "uk", ...).
         "language": "en",
+        "cleanup": {
+            "enabled": False,
+            "provider": "openrouter",
+            "model": "openai/gpt-4o-mini",
+            "timeout_seconds": 5,
+            "minimum_confidence": 0.90,
+            "max_topic_context_chars": 1000,
+        },
         "local": {
             "model": "base",  # tiny, base, small, medium, large-v3
             "language": "",  # auto-detect by default; set to "en", "es", "fr", etc. to force
