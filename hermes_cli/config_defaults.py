@@ -1072,6 +1072,15 @@ DEFAULT_CONFIG = {
         "cloud_trim_silence": True,
         "cloud_trim_threshold_db": -40,  # quieter than this counts as silence
         "cloud_trim_keep_ms": 300,  # how much of each pause survives (natural pacing)
+        "cleanup": {
+            "enabled": False,
+            "provider": "openrouter",
+            "model": "openai/gpt-4o-mini",
+            "timeout_seconds": 5,
+            "minimum_confidence": 0.90,
+            "max_topic_context_chars": 1000,
+        },
+
         "local": {
             "model": "base",  # tiny, base, small, medium, large-v3
             "language": "",  # auto-detect; set "en", "es", ... to force
