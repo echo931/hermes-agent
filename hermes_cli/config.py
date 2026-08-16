@@ -2191,10 +2191,18 @@ def warn_deprecated_cwd_env_vars(config: Optional[Dict[str, Any]] = None) -> Non
     """Warn if MESSAGING_CWD or TERMINAL_CWD is set in .env instead of config.yaml.
 
     These env vars are deprecated — the canonical setting is terminal.cwd
-    in config.yaml.  Prints a migration hint to stderr.
+    in config.yaml.  Inspect the on-disk file rather than ``os.environ``:
+    gateway/config bridges and inter-agent launches legitimately seed
+    ``TERMINAL_CWD`` in the process environment.  Treating that bridge as a
+    user-authored .env entry produces a false migration warning.
     """
-    messaging_cwd = os.environ.get("MESSAGING_CWD")
-    terminal_cwd_env = os.environ.get("TERMINAL_CWD")
+    try:
+        env_file = load_env()
+    except Exception:
+        env_file = {}
+
+    messaging_cwd = env_file.get("MESSAGING_CWD")
+    terminal_cwd_env = env_file.get("TERMINAL_CWD")
 
     if config is None:
         try:
@@ -2214,7 +2222,6 @@ def warn_deprecated_cwd_env_vars(config: Optional[Dict[str, Any]] = None) -> Non
             f"this is deprecated."
         )
     if terminal_cwd_env and not config_has_explicit_cwd:
-        # TERMINAL_CWD in env but not from config bridge — likely from .env
         lines.append(
             f"  \033[33m⚠\033[0m TERMINAL_CWD={terminal_cwd_env} found in .env — "
             f"this is deprecated."
